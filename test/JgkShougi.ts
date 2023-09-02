@@ -62,8 +62,37 @@ const accept = async (contract: JgkShougi, boardId: BigNumberish, challenger: Si
 }
 
 describe("JgkShougi", function () {
-  describe("proposeGame", function () {
+  describe('sceinario', () => {
+    it('detects TRY and finishes game', async () => {
+      const { contracts, accounts } = await prepare();
+      const host = accounts[0];
+      const challenger = accounts[1];
+      const boardId = await propose(contracts.jgkShougi, accounts[0]);
+      await accept(contracts.jgkShougi, boardId, challenger);
 
+      const f = async (isHostTurn: boolean, x: number, y: number) => {
+        const board = await contracts.jgkShougi.getBoard(boardId);
+        const army = isHostTurn ? board.hostArmy : board.challengerArmy;
+        const soldier = army.soldiers.find(s => s.category === SOLDIER_CATEGORY_LION);
+        if (!soldier) throw new Error('kirin not found');
+
+        const signer = isHostTurn ? host : challenger;
+        return contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, x, y);
+      }
+
+      await f(false, 1, 3);
+      await f(true, 3, 2);
+      await f(false, 1, 2);
+      await f(true, 3, 3);
+      await f(false, 1, 1);
+      await expect(
+        f(true, 3, 4)
+      ).to.be.revertedWith('Your territory is occupied. No reason to fight anymore.');
+    });
+
+  });
+
+  describe("proposeGame", function () {
     it("register game", async function () {
       const { contracts, accounts } = await prepare();
       const boardId = Math.floor(Math.random() * 100000000);

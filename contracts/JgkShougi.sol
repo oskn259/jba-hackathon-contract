@@ -139,6 +139,7 @@ contract JgkShougi is JgkShougiArmy {
         Army storage opponentArmy = boards[boardId].host == msg.sender ? boards[boardId].challengerArmy : boards[boardId].hostArmy;
 
         require(isLionAliveIn(army), 'Loosing LION, your territory is occupied. History is written by the victors.');
+        require(!isTrySucceed(opponentArmy), 'Your territory is occupied. No reason to fight anymore.');
 
         // Get the soldier to move
         JgkShougiSoldier.Soldier storage soldier;
@@ -170,7 +171,12 @@ contract JgkShougi is JgkShougiArmy {
         Army storage opponentArmy = boards[boardId].host == msg.sender ? boards[boardId].challengerArmy : boards[boardId].hostArmy;
 
         require(isLionAliveIn(army), 'Dead men tell no tales.');
-        require(!isLionAliveIn(opponentArmy), 'Enemies are still alive. Finish them to obtain our peace.');
+        require(!isTrySucceed(opponentArmy), 'You deserve nothing.');
+
+        require(
+            isTrySucceed(army) || !isLionAliveIn(opponentArmy),
+            'Enemies are still alive. Finish them to obtain our peace.'
+        );
 
         // All stake amount goes to the winner
         payable(msg.sender).transfer(boards[boardId].stakeAmount);
