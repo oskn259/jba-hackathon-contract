@@ -34,6 +34,11 @@ library JgkShougiSoldier {
     /// @param direction Which side the soldier is facing (1: host, -1: challenger)
     /// @return True if the Soldier can move to that coordinate (note: no consideration about ally soldier)
     function isValidDestination(Soldier memory s, uint8 x, uint8 y, int8 direction) internal pure returns (bool) {
+        // Standby soldier can be put to anywhere
+        if (s.status == SoldierStatus.STANDBY) {
+            return true;
+        }
+
         uint8 dx = Math.distance(x, s.x);
         uint8 dy = Math.distance(y, s.y);
 

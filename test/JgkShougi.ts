@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import {BigNumberish, ContractTransactionReceipt, Signer} from "ethers";
+import {BigNumberish, Signer} from "ethers";
 import {JgkShougi} from '../typechain-types';
 
 const BOARD_STATUS_PROPOSING = 1;
@@ -77,7 +77,7 @@ describe("JgkShougi", function () {
         if (!soldier) throw new Error('kirin not found');
 
         const signer = isHostTurn ? host : challenger;
-        return contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, x, y);
+        return contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, x, y, { value: 100 });
       }
 
       await f(false, 1, 3);
@@ -88,6 +88,47 @@ describe("JgkShougi", function () {
       await expect(
         f(true, 3, 4)
       ).to.be.revertedWith('Your territory is occupied. No reason to fight anymore.');
+      await contracts.jgkShougi.connect(challenger).claimLoots(boardId);
+    });
+
+    it('can put standby soldier into empty cell', async () => {
+      const { contracts, accounts } = await prepare();
+      const host = accounts[0];
+      const challenger = accounts[1];
+      const boardId = await propose(contracts.jgkShougi, accounts[0]);
+      await accept(contracts.jgkShougi, boardId, challenger);
+
+      const f = async (isHostTurn: boolean, x: number, y: number) => {
+        const board = await contracts.jgkShougi.getBoard(boardId);
+        const army = isHostTurn ? board.hostArmy : board.challengerArmy;
+        const soldier = army.soldiers.find(s => s.category === SOLDIER_CATEGORY_LION);
+        if (!soldier) throw new Error('lion not found');
+
+        const signer = isHostTurn ? host : challenger;
+        return contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, x, y, { value: 100 });
+      }
+
+      const g = async (isHostTurn: boolean, x: number, y: number) => {
+        const board = await contracts.jgkShougi.getBoard(boardId);
+        const army = isHostTurn ? board.hostArmy : board.challengerArmy;
+        const soldier = army.soldiers.find(s => s.category === SOLDIER_CATEGORY_HIYOKO && s.status === SOLDIER_STATUS_STANDBY);
+        if (!soldier) throw new Error('standby hiyoko not found');
+
+        const signer = isHostTurn ? host : challenger;
+        return contracts.jgkShougi.connect(signer).putSoldier(boardId, soldier.id, x, y, { value: 400 });
+      }
+
+      await f(false, 1, 3);
+      await f(true, 3, 2);
+      await f(false, 2, 2);
+      await f(true, 2, 3);
+      await g(false, 2, 4);
+
+      const board = await contracts.jgkShougi.getBoard(boardId);
+      const army = board.challengerArmy;
+      const newHiyoko = army.soldiers.find(s => s.x === 2 && s.y === 4);
+      await expect(newHiyoko?.category).to.equal(SOLDIER_CATEGORY_HIYOKO);
+      await expect(newHiyoko?.status).to.equal(SOLDIER_STATUS_ONBOARD);
     });
 
   });
@@ -163,7 +204,7 @@ describe("JgkShougi", function () {
       if (!soldier) throw new Error('kirin not found');
 
       // Move soldier and fetch current board
-      await contracts.jgkShougi.connect(challenger).moveSoldier(boardId, soldier.id, soldier.x, soldier.y - 1).then(tx => tx.wait());
+      await contracts.jgkShougi.connect(challenger).moveSoldier(boardId, soldier.id, soldier.x, soldier.y - 1, { value: 100 }).then(tx => tx.wait());
       const boardNext = await contracts.jgkShougi.getBoard(boardId);
       const soldierNext = boardNext.challengerArmy.soldiers.find(s => s.category === SOLDIER_CATEGORY_KIRIN);
 
@@ -191,7 +232,7 @@ describe("JgkShougi", function () {
       const soldier = board.challengerArmy.soldiers[0];
 
       await expect(
-        contracts.jgkShougi.connect(challenger).moveSoldier(boardId, soldier.id, soldier.x, soldier.y + 1)
+        contracts.jgkShougi.connect(challenger).moveSoldier(boardId, soldier.id, soldier.x, soldier.y + 1, { value: 100 })
       ).to.be.revertedWith('Invalid destination');
     });
 
@@ -205,7 +246,7 @@ describe("JgkShougi", function () {
       if (!soldier) throw new Error('hiyoko not found');
 
       await expect(
-        contracts.jgkShougi.connect(challenger).moveSoldier(boardId, soldier.id, soldier.x, soldier.y - 1)
+        contracts.jgkShougi.connect(challenger).moveSoldier(boardId, soldier.id, soldier.x, soldier.y - 1, { value: 100 })
       ).to
         .emit(contracts.jgkShougi, 'MoveSoldier')
         .withArgs(boardId, soldier.id, soldier.category, soldier.x, soldier.y - 1);
@@ -225,7 +266,7 @@ describe("JgkShougi", function () {
         if (!soldier) throw new Error('kirin not found');
 
         const signer = isHostTurn ? host : challenger;
-        return contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, soldier.x + x, soldier.y + y);
+        return contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, soldier.x + x, soldier.y + y, { value: 100 });
       }
 
       await expect(f(true, 0, 1)).to.be.revertedWith('Your illegal attempt all must fail');
@@ -248,7 +289,7 @@ describe("JgkShougi", function () {
         if (!soldier) throw new Error('lion not found');
 
         const signer = isHostTurn ? host : challenger;
-        await contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, soldier.x + x, soldier.y + y);
+        await contracts.jgkShougi.connect(signer).moveSoldier(boardId, soldier.id, soldier.x + x, soldier.y + y, { value: 100 });
       }
 
       await expect(f(false, 0, -2)).to.be.rejectedWith('Invalid destination');

@@ -134,7 +134,9 @@ contract JgkShougi is JgkShougiArmy {
     /// @param soldierId The ID of soldier to move
     /// @param x The x coordinate to move to
     /// @param y The y coordinate to move to
-    function moveSoldier(uint256 boardId, uint256 soldierId, uint8 x, uint8 y) external startedBoard(boardId) turnSwitcher(boardId) {
+    function moveSoldier(uint256 boardId, uint256 soldierId, uint8 x, uint8 y) external payable startedBoard(boardId) turnSwitcher(boardId) {
+        require(msg.value == boards[boardId].stakeAmount / 200, 'Moving a soldier costs 0.5% of the bounty');
+
         Army storage army = boards[boardId].host == msg.sender ? boards[boardId].hostArmy : boards[boardId].challengerArmy;
         Army storage opponentArmy = boards[boardId].host == msg.sender ? boards[boardId].challengerArmy : boards[boardId].hostArmy;
 
@@ -159,6 +161,41 @@ contract JgkShougi is JgkShougiArmy {
         // Move the soldier
         soldier.x = x;
         soldier.y = y;
+        captureOpponentSoldierAt(x, y, army, opponentArmy);
+        transformSoldier(x, y, army, soldier);
+
+        emit MoveSoldier(boardId, soldierId, soldier.category, x, y);
+    }
+
+    function putSoldier(uint256 boardId, uint256 soldierId, uint8 x, uint8 y) external payable startedBoard(boardId) turnSwitcher(boardId) {
+        require(msg.value == boards[boardId].stakeAmount / 50, 'Putting a soldier costs 2% of the bounty');
+
+        Army storage army = boards[boardId].host == msg.sender ? boards[boardId].hostArmy : boards[boardId].challengerArmy;
+        Army storage opponentArmy = boards[boardId].host == msg.sender ? boards[boardId].challengerArmy : boards[boardId].hostArmy;
+
+        require(isLionAliveIn(army), 'Loosing LION, your territory is occupied. History is written by the victors.');
+        require(!isTrySucceed(opponentArmy), 'Your territory is occupied. No reason to fight anymore.');
+
+        // Get the soldier to move
+        JgkShougiSoldier.Soldier storage soldier;
+        {
+            (uint256 i, bool found) = findSoldierIndex(army, soldierId);
+            require(found, 'Soldier not found');
+            soldier = army.soldiers[i];
+            require(soldier.status == JgkShougiSoldier.SoldierStatus.STANDBY, 'Use moveSoldier() to move a soldier on the board');
+        }
+
+        {
+            require(
+                isValidDestination(army, x, y, soldierId),
+                'Invalid destination'
+            );
+        }
+
+        // Move the soldier
+        soldier.x = x;
+        soldier.y = y;
+        soldier.status = JgkShougiSoldier.SoldierStatus.ONBOARD;
         captureOpponentSoldierAt(x, y, army, opponentArmy);
         transformSoldier(x, y, army, soldier);
 
